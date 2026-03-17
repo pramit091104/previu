@@ -4,7 +4,7 @@ import redis from "../config/redis.ts";
 // General API Rate Limiter
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -15,7 +15,7 @@ export const apiLimiter = rateLimit({
 // Stricter limiter for Auth/Upload endpoints
 export const strictLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // Limit each IP to 10 requests per hour
+  max: 100, // Limit each IP to 10 requests per hour
   standardHeaders: true,
   legacyHeaders: false,
   message: {

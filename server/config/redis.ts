@@ -3,28 +3,33 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL;
 
 let redis: Redis | null = null;
 
-try {
-  redis = new Redis(redisUrl, {
-    maxRetriesPerRequest: 3,
-    retryStrategy(times) {
-      const delay = Math.min(times * 50, 2000);
-      return delay;
-    },
-  });
+// Ignore localhost/127.0.0.1 URLs as they will just crash dev server if no local Redis is running
+if (redisUrl && !redisUrl.includes("localhost") && !redisUrl.includes("127.0.0.1")) {
+  try {
+    redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: null, // prevent unhandled promise rejection crash
+      retryStrategy(times) {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+    });
 
-  redis.on("error", (err) => {
-    console.error("❌ Redis Error:", err);
-  });
+    redis.on("error", (err) => {
+      console.error("❌ Redis Error:", err);
+    });
 
-  redis.on("connect", () => {
-    console.log("✅ Redis Connected");
-  });
-} catch (error) {
-  console.error("❌ Redis Connection Failed:", error);
+    redis.on("connect", () => {
+      console.log("✅ Redis Connected");
+    });
+  } catch (error) {
+    console.error("❌ Redis Connection Failed:", error);
+  }
+} else {
+  console.warn("⚠️ REDIS_URL not set. Redis features will be disabled.");
 }
 
 export default redis;

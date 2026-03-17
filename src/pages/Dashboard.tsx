@@ -3,21 +3,20 @@ import { useAuth } from "../context/AuthContext.tsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Upload, 
-  Video, 
-  MoreVertical, 
-  ExternalLink, 
-  Trash2, 
-  CheckCircle, 
-  Clock, 
+import {
+  Upload,
+  Video,
+  MoreVertical,
+  ExternalLink,
+  Trash2,
+  CheckCircle,
+  Clock,
   AlertCircle,
   Plus,
-  LayoutGrid,
-  List,
-  LogOut
+  X
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import Sidebar from "../components/Sidebar.tsx";
 
 interface VideoData {
   id: string;
@@ -34,40 +33,82 @@ export default function Dashboard() {
   const { user, logout } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadTitle, setUploadTitle] = useState("");
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadData, setUploadData] = useState({
+    title: "",
+    clientName: "",
+    description: ""
+  });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+
+  // Fetch clients to populate the dropdown
+  const { data: clients } = useQuery({
+    queryKey: ["clients"],
+    queryFn: async () => {
+      const { data } = await axios.get("/api/clients");
+      return data;
+    },
+  });
 
   const { data: videos, isLoading } = useQuery({
     queryKey: ["videos"],
     queryFn: async () => {
-      // In a real app, we'd fetch only the user's videos
-      // const { data } = await axios.get("/api/videos/user");
-      // For demo, we'll return some mock data if the API is empty
-      return [
-        { id: "demo1", title: "Project Alpha - Final Cut", originalName: "alpha_v2.mp4", status: "completed", createdAt: new Date().toISOString(), viewCount: 12, approvalStatus: "approved" },
-        { id: "demo2", title: "Brand Identity - Draft 1", originalName: "brand_draft.mov", status: "processing", createdAt: new Date().toISOString(), viewCount: 0, approvalStatus: "pending", progress: 45 },
-      ] as VideoData[];
+      const { data } = await axios.get("/api/videos");
+      return data as VideoData[];
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await axios.delete(`/api/videos/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
+    },
+    onError: (error) => {
+      console.error("Delete failed:", error);
+      alert("Failed to delete video.");
+    }
+  });
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this video?")) {
+      deleteMutation.mutate(id);
+    }
+  };
+
+  const handleUploadClick = () => {
+    setUploadData({ title: "", clientName: "", description: "" });
+    setIsUploadModalOpen(true);
+  };
+
+  const handleModalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fileInputRef.current?.click();
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsUploadModalOpen(false);
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // 1. Initiate upload on backend
+      // 1. Initiate upload on backend (server creates the resumable session)
       const { data: initData } = await axios.post("/api/videos/upload/initiate", {
         fileName: file.name,
         contentType: file.type,
-        title: uploadTitle || file.name,
+        title: uploadData.title || file.name,
+        clientName: uploadData.clientName,
+        description: uploadData.description
       });
 
-      // 2. Upload directly to GCS using resumable URL
-      await axios.put(initData.uploadUrl, file, {
+      // 2. Upload file directly to the session URI (simple PUT, no CORS preflight)
+      await axios.put(initData.sessionUri, file, {
         headers: { "Content-Type": file.type },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
@@ -82,11 +123,10 @@ export default function Dashboard() {
 
       queryClient.invalidateQueries({ queryKey: ["videos"] });
       setIsUploading(false);
-      setUploadTitle("");
     } catch (error) {
       console.error("Upload failed:", error);
       setIsUploading(false);
-      alert("Upload failed. Please check your credentials and try again.");
+      alert("Upload failed. There was an error finalizing the video upload.");
     }
   };
 
@@ -102,39 +142,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-white/5 p-6 flex flex-col h-screen sticky top-0">
-        <div className="flex items-center gap-2 mb-12">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
-            <Video className="w-5 h-5 text-black fill-current" />
-          </div>
-          <span className="text-xl font-bold tracking-tight">VidiReview</span>
-        </div>
-
-        <nav className="flex-grow space-y-2">
-          <button className="w-full flex items-center gap-3 px-4 py-3 bg-emerald-500/10 text-emerald-500 rounded-xl font-medium">
-            <LayoutGrid className="w-5 h-5" />
-            Library
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-zinc-400 hover:text-white hover:bg-white/5 rounded-xl transition-all">
-            <List className="w-5 h-5" />
-            Collections
-          </button>
-        </nav>
-
-        <div className="pt-6 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-6 px-2">
-            <img src={user?.photoURL || ""} alt="" className="w-8 h-8 rounded-full bg-zinc-800" referrerPolicy="no-referrer" />
-            <div className="flex-grow min-w-0">
-              <p className="text-sm font-medium truncate">{user?.displayName}</p>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Pro Plan</p>
-            </div>
-          </div>
-          <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/5 rounded-xl transition-all">
-            <LogOut className="w-5 h-5" />
-            Sign Out
-          </button>
-        </div>
-      </aside>
+      <Sidebar />
 
       {/* Main Content */}
       <main className="flex-grow p-8">
@@ -143,8 +151,8 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold mb-2">My Library</h1>
             <p className="text-zinc-400">Manage your projects and review links.</p>
           </div>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
+          <button
+            onClick={handleUploadClick}
             className="flex items-center gap-2 bg-emerald-500 text-black px-6 py-3 rounded-full font-bold hover:bg-emerald-400 transition-all hover:scale-105 shadow-lg shadow-emerald-500/20"
           >
             <Plus className="w-5 h-5" />
@@ -153,10 +161,58 @@ export default function Dashboard() {
           <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept="video/*" />
         </header>
 
+        {/* Custom Upload Modal */}
+        <AnimatePresence>
+          {isUploadModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-zinc-900 border border-white/10 rounded-3xl p-8 w-full max-w-lg shadow-2xl relative"
+              >
+                <button
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="absolute right-6 top-6 text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <h2 className="text-2xl font-bold mb-6">Upload Video</h2>
+
+                <form onSubmit={handleModalSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Video Title <span className="text-red-500">*</span></label>
+                    <input required type="text" value={uploadData.title} onChange={e => setUploadData({ ...uploadData, title: e.target.value })} className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-white" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Client Name <span className="text-red-500">*</span></label>
+                    <input required type="text" value={uploadData.clientName} onChange={e => setUploadData({ ...uploadData, clientName: e.target.value })} className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-white" placeholder="E.g. Apple Inc..." />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-400 mb-1">Video Description <span className="text-red-500">*</span></label>
+                    <textarea required value={uploadData.description} onChange={e => setUploadData({ ...uploadData, description: e.target.value })} rows={3} className="w-full bg-black border border-white/5 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 text-white resize-none" />
+                  </div>
+
+                  <button type="submit" className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-black rounded-xl font-bold transition-colors mt-4">
+                    Select File & Upload
+                  </button>
+                </form>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Upload Progress Overlay */}
         <AnimatePresence>
           {isUploading && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -170,7 +226,7 @@ export default function Dashboard() {
                 <span className="text-sm font-bold text-emerald-500">{uploadProgress}%</span>
               </div>
               <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                <motion.div 
+                <motion.div
                   className="h-full bg-emerald-500"
                   initial={{ width: 0 }}
                   animate={{ width: `${uploadProgress}%` }}
@@ -184,7 +240,7 @@ export default function Dashboard() {
         {/* Video Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {videos?.map((video) => (
-            <motion.div 
+            <motion.div
               key={video.id}
               layout
               className="bg-zinc-900/50 border border-white/5 rounded-3xl overflow-hidden hover:border-emerald-500/30 transition-all group"
@@ -196,7 +252,7 @@ export default function Dashboard() {
                   {video.status.toUpperCase()}
                 </div>
                 {video.status === "completed" && (
-                  <Link 
+                  <Link
                     to={`/watch/${video.id}`}
                     className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-sm"
                   >
@@ -217,7 +273,7 @@ export default function Dashboard() {
                     <MoreVertical className="w-5 h-5 text-zinc-500" />
                   </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between pt-4 border-t border-white/5">
                   <div className="flex items-center gap-4">
                     <div className="text-center">
@@ -231,7 +287,10 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <button className="p-2 text-zinc-500 hover:text-red-400 transition-colors">
+                  <button
+                    onClick={() => handleDelete(video.id)}
+                    className="p-2 text-zinc-500 hover:text-red-400 transition-colors"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

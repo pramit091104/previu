@@ -3,10 +3,12 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { db } from "../config/firebase.ts";
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || "",
-  key_secret: process.env.RAZORPAY_KEY_SECRET || "",
-});
+const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
+  ? new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  })
+  : null as any;
 
 export const createOrder = async (req: Request, res: Response) => {
   try {

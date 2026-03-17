@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import Hls from "hls.js";
 import Plyr from "plyr";
 import "plyr/dist/plyr.css";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, CheckCircle, XCircle, MessageSquare, Clock } from "lucide-react";
+import { Send, CheckCircle, XCircle, MessageSquare, Clock, ArrowLeft } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -20,6 +20,8 @@ interface Comment {
   timestamp: number;
   userId: string;
   createdAt: string;
+  userName?: string;
+  userPhoto?: string;
 }
 
 export default function Watch() {
@@ -37,11 +39,13 @@ export default function Watch() {
     },
   });
 
-  // Mock comments for demo
-  const [comments, setComments] = useState<Comment[]>([
-    { id: "1", text: "Great lighting here!", timestamp: 12.5, userId: "user1", createdAt: new Date().toISOString() },
-    { id: "2", text: "Maybe trim this part?", timestamp: 45.2, userId: "user2", createdAt: new Date().toISOString() },
-  ]);
+  const { data: comments = [], isLoading: commentsLoading } = useQuery({
+    queryKey: ["comments", videoId],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/videos/${videoId}/comments`);
+      return data as Comment[];
+    },
+  });
 
   useEffect(() => {
     if (!videoRef.current || !video?.hlsPath) return;
@@ -77,20 +81,29 @@ export default function Watch() {
     };
   }, [video, videoId]);
 
+  const addCommentMutation = useMutation({
+    mutationFn: async (newComment: { text: string; timestamp: number }) => {
+      const { data } = await axios.post(`/api/videos/${videoId}/comments`, newComment);
+      return data as Comment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", videoId] });
+      setCommentText("");
+    },
+    onError: (error) => {
+      console.error("Failed to add comment:", error);
+      alert("Failed to add comment. Please try again.");
+    }
+  });
+
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentText.trim() || !playerRef.current) return;
 
-    const newComment: Comment = {
-      id: Math.random().toString(36).substr(2, 9),
+    addCommentMutation.mutate({
       text: commentText,
       timestamp: playerRef.current.currentTime,
-      userId: "current-user",
-      createdAt: new Date().toISOString(),
-    };
-
-    setComments([...comments, newComment].sort((a, b) => a.timestamp - b.timestamp));
-    setCommentText("");
+    });
   };
 
   const formatTime = (seconds: number) => {
@@ -106,6 +119,10 @@ export default function Watch() {
       {/* Video Player Section */}
       <div className="flex-grow p-4 lg:p-8">
         <div className="max-w-5xl mx-auto">
+          <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors mb-6">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Link>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold mb-1">{video?.title || "Untitled Review"}</h1>
@@ -129,16 +146,17 @@ export default function Watch() {
 
           {/* Comment Input */}
           <form onSubmit={handleAddComment} className="mt-8 relative">
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               placeholder="Add a timestamped comment..."
               className="w-full bg-zinc-900 border border-white/10 rounded-2xl px-6 py-4 pr-16 focus:outline-none focus:border-emerald-500/50 transition-colors"
             />
-            <button 
+            <button
               type="submit"
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-emerald-500 rounded-xl text-black hover:bg-emerald-400 transition-colors"
+              disabled={addCommentMutation.isPending}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-emerald-500 rounded-xl text-black hover:bg-emerald-400 transition-colors disabled:opacity-50"
             >
               <Send className="w-5 h-5" />
             </button>
@@ -162,7 +180,7 @@ export default function Watch() {
         <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
           <AnimatePresence initial={false}>
             {comments.map((comment) => (
-              <motion.div 
+              <motion.div
                 key={comment.id}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}

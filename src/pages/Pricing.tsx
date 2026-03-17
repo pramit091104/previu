@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { motion } from "motion/react";
-import { Check } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import { useAuth } from "../context/AuthContext.tsx";
+import { Link } from "react-router-dom";
+import AuthModal from "../components/AuthModal.tsx";
 
 export default function Pricing() {
-  const { login } = useAuth();
+  const { user } = useAuth();
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   const tiers = [
     {
@@ -30,8 +34,30 @@ export default function Pricing() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white py-24 px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-zinc-950 text-white selection:bg-emerald-500/30">
+      {/* Navigation */}
+      <nav className="flex items-center justify-between px-8 py-6 border-b border-white/5">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <Play className="w-5 h-5 text-black fill-current" />
+          </div>
+          <span className="text-xl font-bold tracking-tight">VidiReview</span>
+        </Link>
+        <div className="flex items-center gap-8">
+          <Link to="/pricing" className="text-sm text-emerald-500 font-medium">Pricing</Link>
+          {user ? (
+            <Link to="/dashboard" className="bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-zinc-200 transition-colors">
+              Dashboard
+            </Link>
+          ) : (
+            <button onClick={() => setIsAuthOpen(true)} className="bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-zinc-200 transition-colors">
+              Get Started
+            </button>
+          )}
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto py-24 px-8">
         <div className="text-center mb-20">
           <h2 className="text-4xl md:text-5xl font-bold mb-6">Simple, transparent pricing.</h2>
           <p className="text-zinc-400 text-lg">Choose the plan that's right for your workflow.</p>
@@ -39,7 +65,7 @@ export default function Pricing() {
 
         <div className="grid md:grid-cols-3 gap-8">
           {tiers.map((tier, i) => (
-            <motion.div 
+            <motion.div
               key={i}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -62,8 +88,12 @@ export default function Pricing() {
                   </li>
                 ))}
               </ul>
-              <button 
-                onClick={login}
+              <button
+                onClick={() => {
+                  if (!user) {
+                    setIsAuthOpen(true);
+                  }
+                }}
                 className={`w-full py-4 rounded-full font-bold transition-all ${tier.popular ? 'bg-emerald-500 text-black hover:bg-emerald-400' : 'bg-white text-black hover:bg-zinc-200'}`}
               >
                 {tier.cta}
@@ -72,6 +102,8 @@ export default function Pricing() {
           ))}
         </div>
       </div>
+
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </div>
   );
 }

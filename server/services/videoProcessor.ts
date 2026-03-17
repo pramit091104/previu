@@ -2,6 +2,7 @@ import ffmpeg from "fluent-ffmpeg";
 import ffmpegStatic from "ffmpeg-static";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { db } from "../config/firebase.ts";
 import gcs, { bucketName } from "../config/gcs.ts";
 
@@ -15,7 +16,7 @@ export const transcodeToHLS = async (videoId: string, inputPath: string, userId:
   try {
     await videoRef.update({ status: "processing", updatedAt: new Date() });
 
-    const outputDir = path.join("/tmp", videoId);
+    const outputDir = path.join(os.tmpdir(), videoId);
     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
     const playlistPath = path.join(outputDir, "playlist.m3u8");

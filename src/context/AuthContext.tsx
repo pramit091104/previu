@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { 
-  getAuth, 
-  onAuthStateChanged, 
-  User, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut 
+import {
+  getAuth,
+  onAuthStateChanged,
+  User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut
 } from "firebase/auth";
 import { initializeApp } from "firebase/app";
 
@@ -24,7 +24,8 @@ const auth = getAuth(app);
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -42,9 +43,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
-  const login = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const signup = async (email: string, password: string) => {
+    await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const logout = async () => {
@@ -52,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

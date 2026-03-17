@@ -11,6 +11,9 @@ import { errorHandler } from "./server/middleware/errorHandler.ts";
 import videoRoutes from "./server/routes/videoRoutes.ts";
 import protectedRoutes from "./server/routes/protectedRoutes.ts";
 import paymentRoutes from "./server/routes/paymentRoutes.ts";
+import clientRoutes from "./server/routes/clientRoutes.ts";
+import overviewRoutes from "./server/routes/overviewRoutes.ts";
+import commentRoutes from "./server/routes/commentRoutes.ts";
 
 // Load environment variables
 dotenv.config();
@@ -27,7 +30,7 @@ async function startServer() {
     contentSecurityPolicy: false, // Disable for development to allow Vite HMR/Assets
     crossOriginEmbedderPolicy: false,
   }));
-  
+
   app.use(cors({
     origin: process.env.APP_URL || "*",
     credentials: true,
@@ -41,7 +44,10 @@ async function startServer() {
   app.use("/api/videos", videoRoutes);
   app.use("/api/protected", protectedRoutes);
   app.use("/api/payments", paymentRoutes);
-  
+  app.use("/api/clients", clientRoutes);
+  app.use("/api/overview", overviewRoutes);
+  app.use("/api/comments", commentRoutes);
+
   // Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
