@@ -221,3 +221,31 @@ export const addComment = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to add comment" });
   }
 };
+
+export const updateVideoStatus = async (req: Request, res: Response) => {
+  try {
+    const { videoId } = req.params;
+    const { status } = req.body;
+    
+    if (!["approved", "needs_revision", "pending"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status value" });
+    }
+
+    const videoRef = db.collection("videos").doc(videoId);
+    const videoDoc = await videoRef.get();
+
+    if (!videoDoc.exists) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    await videoRef.update({
+      approvalStatus: status,
+      updatedAt: new Date()
+    });
+
+    res.json({ message: "Video status updated", status });
+  } catch (error) {
+    console.error("Failed to update video status:", error);
+    res.status(500).json({ error: "Failed to update video status" });
+  }
+};

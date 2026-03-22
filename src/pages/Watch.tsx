@@ -48,7 +48,8 @@ export default function Watch() {
   });
 
   useEffect(() => {
-    if (!videoRef.current || !video?.hlsPath) return;
+    if (!videoRef.current || video?.status !== "completed") return;
+    if (playerRef.current) return; // Prevent double initialization
 
     const videoElement = videoRef.current;
     const hlsUrl = `/api/protected/stream/${videoId}/playlist.m3u8`;
@@ -77,9 +78,11 @@ export default function Watch() {
     }
 
     return () => {
-      playerRef.current?.destroy();
+      // playerRef.current?.destroy();
+      // We don't want to destroy the player on every unmount or status update,
+      // handled internally by HLS.
     };
-  }, [video, videoId]);
+  }, [videoId, video?.status]); // Only re-run if the core processing status changes
 
   const addCommentMutation = useMutation({
     mutationFn: async (newComment: { text: string; timestamp: number }) => {
@@ -93,6 +96,20 @@ export default function Watch() {
     onError: (error) => {
       console.error("Failed to add comment:", error);
       alert("Failed to add comment. Please try again.");
+    }
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (status: "approved" | "needs_revision") => {
+      const { data } = await axios.put(`/api/videos/${videoId}/status`, { status });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["video", videoId] });
+    },
+    onError: (error) => {
+      console.error("Failed to update status:", error);
+      alert("Failed to update status. Please try again.");
     }
   });
 
@@ -129,13 +146,31 @@ export default function Watch() {
               <p className="text-zinc-400 text-sm">Reviewing: {video?.originalName}</p>
             </div>
             <div className="flex gap-3">
-              <button className="flex items-center gap-2 bg-zinc-900 border border-white/10 px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors">
-                <XCircle className="w-4 h-4 text-red-500" />
-                Reject
+              <button 
+                onClick={() => updateStatusMutation.mutate("needs_revision")}
+                disabled={updateStatusMutation.isPending || video?.approvalStatus === "needs_revision"}
+                className={cn(
+                  "flex items-center gap-2 border px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50",
+                  video?.approvalStatus === "needs_revision" 
+                    ? "bg-red-500/10 border-red-500/50 text-red-400" 
+                    : "bg-zinc-900 border-white/10 hover:bg-zinc-800"
+                )}
+              >
+                <XCircle className="w-4 h-4" />
+                {video?.approvalStatus === "needs_revision" ? "Needs Revision" : "Reject"}
               </button>
-              <button className="flex items-center gap-2 bg-emerald-500 text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-400 transition-colors">
+              <button 
+                onClick={() => updateStatusMutation.mutate("approved")}
+                disabled={updateStatusMutation.isPending || video?.approvalStatus === "approved"}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50",
+                  video?.approvalStatus === "approved"
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50"
+                    : "bg-emerald-500 text-black hover:bg-emerald-400"
+                )}
+              >
                 <CheckCircle className="w-4 h-4" />
-                Approve
+                {video?.approvalStatus === "approved" ? "Approved" : "Approve"}
               </button>
             </div>
           </div>
