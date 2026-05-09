@@ -12,6 +12,26 @@ export const initiateUpload = async (req: Request, res: Response) => {
     const userId = (req as any).user?.uid || "anonymous"; // In real app, get from auth middleware
     const origin = req.headers.origin || "http://localhost:3000";
 
+    console.log("Initiating upload for:", { fileName, contentType, title, clientName, userId });
+
+    // Check if GCS is initialized
+    if (!gcs) {
+      console.error("GCS not initialized - missing credentials");
+      return res.status(500).json({ 
+        error: "Storage service not available", 
+        details: "GCS credentials not configured" 
+      });
+    }
+
+    // Check if Firebase is initialized
+    if (!db) {
+      console.error("Firebase not initialized - missing credentials");
+      return res.status(500).json({ 
+        error: "Database service not available", 
+        details: "Firebase credentials not configured" 
+      });
+    }
+
     const { sessionUri, blobName } = await initiateResumableUpload(fileName, contentType, userId, origin);
     
     if (clientName) {
@@ -57,7 +77,11 @@ export const initiateUpload = async (req: Request, res: Response) => {
       blobName
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to initiate upload" });
+    console.error("Error in initiateUpload:", error);
+    res.status(500).json({ 
+      error: "Failed to initiate upload", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    });
   }
 };
 

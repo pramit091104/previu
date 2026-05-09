@@ -1,6 +1,6 @@
-# VidiReview
+# Previu
 
-VidiReview is a platform for video sharing and feedback.
+Previu is a platform for video sharing and feedback.
 
 ## Setup Instructions
 

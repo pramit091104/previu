@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+*.log
+src
+index.html
+vite.config.ts
+public

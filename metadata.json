@@ -1,5 +1,5 @@
 {
-  "name": "VidiReview - Pro Video Collaboration",
+  "name": "Previu - Pro Video Collaboration",
   "description": "Enterprise-grade video hosting, HLS transcoding, and client review platform with content protection and tiered subscriptions.",
   "requestFramePermissions": [
     "camera",
